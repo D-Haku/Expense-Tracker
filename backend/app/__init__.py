@@ -1,10 +1,11 @@
 """Flask application factory — creates and configures the app."""
 
 import logging
+import os
 import time
 from typing import Tuple
 
-from flask import Flask, Response, jsonify, request
+from flask import Flask, Response, jsonify, request, send_from_directory
 from werkzeug.exceptions import HTTPException
 
 from app.extensions import db, ma
@@ -41,6 +42,9 @@ def create_app(config_object: str = "config.Config") -> Flask:
 
     # Request logging middleware
     _register_request_hooks(app)
+
+    # Serve React build in production
+    _register_static_serving(app)
 
     # Create tables
     with app.app_context():
@@ -117,6 +121,23 @@ def _register_request_hooks(app: Flask) -> None:
             duration_ms,
         )
         return response
+
+
+def _register_static_serving(app: Flask) -> None:
+    """Serve the React frontend build in production."""
+    frontend_build = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), "frontend_build"
+    )
+
+    if os.path.isdir(frontend_build):
+        @app.route("/", defaults={"path": ""})
+        @app.route("/<path:path>")
+        def serve_frontend(path: str) -> Response:
+            """Serve React app — API routes take priority via blueprints."""
+            file_path = os.path.join(frontend_build, path)
+            if path and os.path.isfile(file_path):
+                return send_from_directory(frontend_build, path)
+            return send_from_directory(frontend_build, "index.html")
 
 
 def _seed_default_categories() -> None:

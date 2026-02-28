@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: expense-tracker
+    runtime: python
+    rootDir: .
+    buildCommand: chmod +x build.sh && ./build.sh
+    startCommand: cd backend && gunicorn run:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.6
+      - key: NODE_VERSION
+        value: 18.19.0
