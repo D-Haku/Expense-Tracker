@@ -1,111 +1,146 @@
-# Expense Tracker
+# 💰 Expense Tracker
 
-A personal expense tracking application built for the Better Software engineering assessment.
+A small, well-structured expense tracking application built as an assessment for **Better Software**. Prioritizes **correctness, structure, and simplicity** over feature count.
 
-## Product Choice
+## Tech Stack
 
-An expense tracker was chosen because:
-- **Well-bounded domain** — expenses, categories, and summaries have clear rules
-- **Small enough to structure well** — no feature bloat, just clean CRUD + aggregation
-- **Demonstrates real constraints** — amounts must be positive, dates valid, categories enforced
+| Layer    | Technology                        |
+|----------|-----------------------------------|
+| Backend  | Python 3 + Flask                  |
+| Frontend | React 18 + TypeScript (strict)    |
+| Database | SQLite via SQLAlchemy ORM         |
+| Testing  | pytest (47 automated tests)       |
 
-## Architecture
-
-```
-┌─────────────┐     HTTP/JSON      ┌─────────────┐     SQLAlchemy     ┌──────────┐
-│   React UI  │  ◄──────────────►  │  Flask API  │  ◄──────────────►  │  SQLite  │
-│ (TypeScript)│                    │  (Python)   │                    │          │
-└─────────────┘                    └─────────────┘                    └──────────┘
-```
-
-### Backend (Python + Flask)
-- **Flask Blueprints** for route organization (expenses, categories)
-- **SQLAlchemy ORM** for database access — no raw SQL, migrations-friendly
-- **Marshmallow schemas** for request validation and response serialization
-- **Centralized error handling** — all errors return structured JSON with codes
-- **Structured logging** — every request logged with method, path, status, duration
-
-### Frontend (React + TypeScript)
-- **TypeScript throughout** — catches type mismatches at compile time
-- **Custom hooks** for data fetching — separates API logic from UI
-- **Component boundaries** — form, list, and summary are independent components
-
-### Database (SQLite)
-- **SQLite chosen for zero-setup** — no external process needed, file-based
-- **Foreign key constraints enforced** — categories must exist before referencing
-- **SQLAlchemy makes switching trivial** — change one connection string to use PostgreSQL
-
-## Key Technical Decisions
-
-| Decision | Rationale |
-|----------|-----------|
-| SQLite over PostgreSQL | Zero setup, portable, sufficient for single-user app. SQLAlchemy abstracts the difference. |
-| Marshmallow for validation | Separates validation logic from routes. Schemas are testable independently. |
-| Flask Blueprints | Each resource gets its own module. Adding a new resource doesn't touch existing code. |
-| TypeScript on frontend | Catches category ID mismatches, missing fields at build time rather than runtime. |
-| No ORM lazy loading | All relationships use `joinedload` explicitly — no N+1 surprise queries. |
-| Centralized error handler | Every error returns `{error, code, details}` — frontend never gets raw HTML errors. |
-
-## Tradeoffs & Weaknesses
-
-- **No authentication** — intentionally omitted to keep scope small. Would add Flask-JWT-Extended.
-- **SQLite limitations** — no concurrent writes, but acceptable for single-user.
-- **No pagination** — expenses list loads all records. Would add cursor-based pagination for scale.
-- **No CI/CD** — tests run locally. Would add GitHub Actions.
-- **Minimal UI styling** — functional CSS only. The focus is on structure, not polish.
-
-## Running the Project
-
-### Prerequisites
-- Python 3.9+
-- Node.js 18+
+## Quick Start
 
 ### Backend
+
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate
+source venv/bin/activate        # macOS/Linux
 pip install -r requirements.txt
-python run.py
-# API runs on http://localhost:5000
+python run.py                   # Starts on http://localhost:5001
 ```
 
 ### Frontend
+
 ```bash
 cd frontend
 npm install
-npm start
-# UI runs on http://localhost:3000
+npm start                       # Starts on http://localhost:3000
 ```
 
-### Running Tests
+The backend seeds 6 default categories on first run: Food, Transport, Entertainment, Utilities, Shopping, Health.
+
+## Project Structure
+
+```
+backend/
+  app/               → Flask app factory + extensions
+  models/            → SQLAlchemy models (Category, Expense)
+  schemas/           → Marshmallow validation schemas
+  routes/            → Flask Blueprints (expenses, categories)
+  tests/             → 47 tests (routes, schemas, validation)
+  config.py          → Configuration with env var overrides
+  run.py             → Entry point
+
+frontend/
+  src/
+    api/client.ts    → All HTTP calls isolated here
+    components/      → ExpenseForm, ExpenseList, ExpenseSummary
+    types.ts         → TypeScript interfaces for API data
+    App.tsx          → Main app shell
+```
+
+## Key Technical Decisions
+
+### 1. Backend is the authority
+All validation happens server-side via Marshmallow schemas. Frontend validation is a UX convenience only — the backend enforces every constraint:
+- `amount` must be > 0
+- `description` must be 1–200 characters, non-empty
+- `date` must be a valid ISO date, not in the future
+- `category_id` must reference an existing category
+
+### 2. No raw SQL
+SQLAlchemy ORM exclusively. The database is swappable from SQLite to PostgreSQL by changing one config variable.
+
+### 3. Structured error responses
+Every error follows `{error: string, code: string, details?: object}`. No plain strings or HTML errors ever leave the API.
+
+### 4. API calls isolated
+Frontend components never call `fetch` directly. All HTTP is in `src/api/client.ts`, typed with TypeScript interfaces. This makes it trivial to swap HTTP libraries or add interceptors.
+
+### 5. SQLite for simplicity
+For a small dataset, SQLite is the right choice. No installation, no server process, zero config. The ORM abstraction means switching to PostgreSQL requires only a connection string change.
+
+### 6. Port 5001 (not 5000)
+macOS uses port 5000 for AirPlay Receiver. The backend runs on port 5001 to avoid conflicts.
+
+## Testing
+
 ```bash
-# Backend tests
 cd backend
+source venv/bin/activate
 python -m pytest tests/ -v
-
-# Frontend tests
-cd frontend
-npm test
 ```
 
-## Extension Approach
+**47 tests** covering:
+- **Route tests** — success paths, validation failures, 404s, dependency constraints
+- **Schema tests** — every validation rule independently verified
+- All tests use in-memory SQLite (`:memory:`) — no external dependencies
 
-To extend this system:
-1. **New resource** — add a model, schema, and blueprint. Register in `app/__init__.py`.
-2. **New validation rule** — add to the Marshmallow schema. Existing routes don't change.
-3. **Switch database** — change `SQLALCHEMY_DATABASE_URI` in config. No code changes.
-4. **Add auth** — wrap routes with a decorator. Route logic stays untouched.
+### Test coverage includes:
+- Create/Read/Delete expenses and categories
+- Validation: negative amounts, future dates, empty descriptions, long strings
+- Referential integrity: can't delete a category with expenses
+- Spending summary aggregation
+- Schema serialization (dump-only fields like `id`, `created_at`)
+
+## Tradeoffs and Known Limitations
+
+| Decision | Tradeoff |
+|----------|----------|
+| No authentication | Out of scope — simplifies the system, focuses on data correctness |
+| No pagination | Dataset is small by design; adding later requires only route changes |
+| No update endpoint | DELETE + re-create is sufficient for this scope |
+| SQLite | Not suitable for concurrent writes at scale, but perfect for assessment scope |
+| react-scripts | Heavier than Vite, but zero-config and battle-tested |
+
+## Extension Pattern
+
+Adding a new resource (e.g., "budgets"):
+1. Create `models/budget.py` with SQLAlchemy model
+2. Create `schemas/budget.py` with Marshmallow schema
+3. Create `routes/budget.py` with Flask Blueprint
+4. Register blueprint in `app/__init__.py`
+5. Add tests in `tests/test_budget.py`
+
+No existing files need modification except `app/__init__.py` for blueprint registration.
 
 ## AI Usage
 
-AI (Claude) was used to accelerate development:
-- **Scaffolding** — initial project structure and boilerplate
-- **Code generation** — models, schemas, routes, React components
-- **Test generation** — test cases for validation edge cases
+This project was built with AI assistance (Claude via Cline). AI was used for:
+- **Code generation**: Models, schemas, routes, components, tests
+- **Architecture guidance**: File structure, separation of concerns
+- **Debugging**: Port conflicts, CORS issues, test failures
 
-All generated code was reviewed for:
-- Correct validation rules (amounts > 0, dates not in future)
-- Proper error handling (no silent failures)
-- Consistent API response format
-- No unnecessary dependencies
+All generated code was reviewed against the constraints in `AGENTS.md`, which defines:
+- Architecture rules (backend authority, no raw SQL, schema validation)
+- Validation constraints (business rules enforced by Marshmallow)
+- What NOT to do (no auth, no pagination, no WebSockets)
+- Extension patterns for new resources
+
+The `AGENTS.md` file serves as a guardrail — it constrains AI behavior to prevent over-engineering and ensure the system stays simple and correct.
+
+## API Endpoints
+
+| Method | Endpoint              | Description                    |
+|--------|-----------------------|--------------------------------|
+| GET    | `/api/categories`     | List all categories            |
+| POST   | `/api/categories`     | Create a category              |
+| DELETE | `/api/categories/:id` | Delete a category (if no expenses) |
+| GET    | `/api/expenses`       | List all expenses              |
+| POST   | `/api/expenses`       | Create an expense              |
+| DELETE | `/api/expenses/:id`   | Delete an expense              |
+| GET    | `/api/expenses/summary` | Spending by category         |

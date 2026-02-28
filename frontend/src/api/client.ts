@@ -5,7 +5,7 @@
 
 import { Category, Expense, ExpenseSummary, ApiError } from '../types';
 
-const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 
 /** Parse response or throw structured error. */
 async function handleResponse<T>(response: Response): Promise<T> {
